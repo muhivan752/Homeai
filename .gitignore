@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+venv/
+.env
+runtime/homeai.db
+runtime/media/avatars/*
+runtime/media/faces/*
+runtime/media/payments/*
+runtime/temp_audio/*
+!runtime/**/.gitkeep

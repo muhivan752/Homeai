@@ -1,0 +1,15 @@
+# HomeAI Backend Requirements
+# Python 3.10+
+
+# Web Framework
+Flask>=3.0.0
+Flask-WTF>=1.2.0
+
+# Security
+Werkzeug>=3.0.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Optional: For production
+gunicorn>=21.0.0

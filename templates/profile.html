@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Profil Saya{% endblock %}
+
+{% block content %}
+<div class="cyber-header">
+    <div class="header-title">
+        <h1>Profil Pengguna</h1>
+        <p>Kelola identitas & koneksi Telegram</p>
+    </div>
+</div>
+
+<div class="stats-grid" style="grid-template-columns: 1fr 2fr; margin-bottom:40px;">
+    <div class="stat-card" style="text-align:center;">
+        <div style="width:150px; height:150px; margin:0 auto 20px; border-radius:50%; overflow:hidden; border:3px solid var(--cyber-primary); box-shadow: 0 0 20px rgba(0,255,157,0.2);">
+            {% if user.avatar %}
+                <img src="{{ url_for('media.serve_media', filename=user.avatar) }}" style="width:100%; height:100%; object-fit:cover;">
+            {% else %}
+                <img src="https://ui-avatars.com/api/?name={{ user.name }}&background=00ff9d&color=000&size=150" style="width:100%;">
+            {% endif %}
+        </div>
+        
+        <form action="{{ url_for('main.profile') }}" method="POST" enctype="multipart/form-data">
+            <label for="file-upload" class="cyber-btn secondary" style="cursor:pointer; display:inline-block; margin-bottom:10px;">
+                <i class="fas fa-camera"></i> Ganti Avatar
+            </label>
+            <input id="file-upload" type="file" name="avatar" style="display:none;" onchange="this.form.submit()">
+        </form>
+    </div>
+
+    <div class="stat-card">
+        <h3 style="margin-bottom:20px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:10px; color:var(--cyber-primary);">
+            <i class="fas fa-id-card"></i> Data Akun & Asisten
+        </h3>
+        <p><strong>NAMA:</strong> {{ user.name }}</p>
+        <p><strong>EMAIL:</strong> {{ user.email }}</p>
+        <p><strong>PLAN:</strong> <span class="badge">{{ user.plan_name }}</span></p>
+        <div style="margin-top:20px;">
+            <a href="https://t.me/InformanGueBot?start={{ user.id }}" target="_blank" class="cyber-btn primary" style="text-decoration:none;">
+                <i class="fab fa-telegram-plane"></i> Hubungkan Telegram
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="cyber-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+    <div>
+        <h3 style="margin:0; font-size:1.5rem;">Family Identity</h3>
+        <p style="font-size:0.8rem; margin:0; opacity:0.7;">Wajah yang dikenali oleh sistem (Safe List)</p>
+    </div>
+    <button onclick="document.getElementById('familyModal').style.display='flex'" class="cyber-btn primary">
+        <i class="fas fa-user-plus"></i> Tambah Anggota
+    </button>
+</div>
+
+<div class="stats-grid" style="grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:20px;">
+    {% if family %}
+        {% for member in family %}
+        <div class="stat-card" style="padding:0; overflow:hidden;">
+            <div style="height:150px; overflow:hidden;">
+                <img src="{{ url_for('media.serve_media', filename=member.photo_identity) }}" style="width:100%; height:100%; object-fit:cover;">
+            </div>
+            <div style="padding:15px;">
+                <h4 style="margin:0;">{{ member.name }}</h4>
+                <p style="color:var(--cyber-primary); font-size:0.8rem; margin:5px 0 15px;">{{ member.role|upper }}</p>
+                
+                <form action="{{ url_for('main.delete_family', id=member.id) }}" method="POST" onsubmit="return confirm('Hapus identitas ini?');">
+                    <button type="submit" class="cyber-btn danger" style="padding:5px 10px; font-size:0.8rem; width:100%;">
+                        <i class="fas fa-trash"></i> Hapus
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div style="grid-column:1/-1; padding:40px; text-align:center; border:1px dashed rgba(255,255,255,0.1); border-radius:15px;">
+            <p>Belum ada data identitas keluarga.</p>
+        </div>
+    {% endif %}
+</div>
+
+<div id="familyModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:999; align-items:center; justify-content:center;">
+    <div class="stat-card" style="width:90%; max-width:400px; position:relative;">
+        <button onclick="document.getElementById('familyModal').style.display='none'" style="position:absolute; top:15px; right:15px; background:none; border:none; color:white; cursor:pointer;">&times;</button>
+        <h3>Registrasi Wajah</h3>
+        <form action="{{ url_for('main.add_family') }}" method="POST" enctype="multipart/form-data">
+            <input type="text" name="name" required placeholder="Nama Panggilan" style="width:100%; margin-bottom:15px; padding:10px; background:#111; color:white; border:1px solid #333;">
+            <input type="text" name="role" required placeholder="Role (Istri/Anak/Tamu)" style="width:100%; margin-bottom:15px; padding:10px; background:#111; color:white; border:1px solid #333;">
+            <input type="file" name="photo" required accept="image/*" style="margin-bottom:20px;">
+            <button type="submit" class="cyber-btn primary" style="width:100%;">SIMPAN IDENTITAS</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    window.onclick = function(e) { if(e.target == document.getElementById('familyModal')) { document.getElementById('familyModal').style.display = 'none'; } }
+</script>
+{% endblock %}

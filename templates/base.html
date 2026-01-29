@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}HomeAI Dashboard{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cyber.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    {% block extra_css %}{% endblock %}
+    <style>
+        /* Mobile Responsive Fixes */
+        .mobile-header {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: #050510;
+            border-bottom: 1px solid rgba(0, 255, 157, 0.3);
+            z-index: 1001;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+        }
+
+        .mobile-brand {
+            font-size: 1.2em;
+            color: #00ff9d;
+            letter-spacing: 2px;
+            font-weight: bold;
+        }
+
+        .hamburger {
+            background: none;
+            border: none;
+            color: #00ff9d;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 10px;
+        }
+
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 999;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-header {
+                display: flex;
+            }
+
+            .main-content {
+                margin-left: 0 !important;
+                padding-top: 70px !important;
+            }
+
+            .cyber-sidebar {
+                transform: translateX(-100%);
+                top: 0;
+                padding-top: 20px;
+            }
+
+            .cyber-sidebar.active {
+                transform: translateX(0);
+            }
+        }
+
+        @media (min-width: 769px) {
+            .cyber-sidebar {
+                transform: translateX(0) !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    {% if session.user_id %}
+        <!-- Mobile Header with Hamburger -->
+        <div class="mobile-header">
+            <span class="mobile-brand">HOME<strong>AI</strong></span>
+            <button class="hamburger" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+
+        <!-- Overlay for mobile -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+        {% include 'sidebar.html' %}
+    {% endif %}
+
+    <div class="main-content" style="{{ 'margin-left:250px; padding:20px;' if session.user_id else 'margin:0;' }}">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script>
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        }
+
+        // Close sidebar when clicking a link (mobile)
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    document.getElementById('sidebar').classList.remove('active');
+                    document.getElementById('sidebarOverlay').classList.remove('active');
+                }
+            });
+        });
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

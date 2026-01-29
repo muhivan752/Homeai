@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+{% block title %}Billing & Payments{% endblock %}
+
+{% block extra_css %}
+<style>
+    .pricing-info {
+        background: linear-gradient(135deg, rgba(0,255,157,0.1) 0%, rgba(0,217,255,0.05) 100%);
+        border: 1px solid rgba(0,255,157,0.3);
+        border-radius: 15px;
+        padding: 25px;
+        margin-bottom: 30px;
+    }
+    .pricing-card {
+        background: rgba(0,0,0,0.3);
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    .pricing-card .price {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #00ff9d;
+    }
+    .pricing-card .period {
+        font-size: 0.9rem;
+        opacity: 0.6;
+    }
+    .payment-methods {
+        background: rgba(255,215,0,0.05);
+        border: 1px solid rgba(255,215,0,0.3);
+        border-radius: 12px;
+        padding: 20px;
+        margin: 20px 0;
+    }
+    .bank-info {
+        background: rgba(0,0,0,0.3);
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 15px;
+        font-family: monospace;
+    }
+    .copy-btn {
+        background: rgba(0,255,157,0.2);
+        border: 1px solid #00ff9d;
+        color: #00ff9d;
+        padding: 5px 10px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        margin-left: 10px;
+    }
+    .copy-btn:hover {
+        background: #00ff9d;
+        color: black;
+    }
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: bold;
+    }
+    .status-pending-payment {
+        background: rgba(255,215,0,0.1);
+        color: #ffd700;
+        border: 1px solid rgba(255,215,0,0.3);
+    }
+    .status-pending-review {
+        background: rgba(0,217,255,0.1);
+        color: #00d9ff;
+        border: 1px solid rgba(0,217,255,0.3);
+    }
+    .status-active {
+        background: rgba(0,255,157,0.1);
+        color: #00ff9d;
+        border: 1px solid rgba(0,255,157,0.3);
+    }
+    .status-rejected {
+        background: rgba(255,68,68,0.1);
+        color: #ff4444;
+        border: 1px solid rgba(255,68,68,0.3);
+    }
+    .device-item {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .device-item.selected {
+        border-color: #00ff9d;
+        background: rgba(0,255,157,0.05);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cyber-header">
+    <div class="header-title">
+        <h1>Billing & Payments</h1>
+        <p>Kelola pembayaran & langganan perangkat</p>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+    <div class="cyber-notification notification-{{ category }}" style="margin-bottom:20px;">
+        <i class="fas fa-info-circle"></i> <span>{{ message }}</span>
+    </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<!-- Pricing Info -->
+<div class="pricing-info">
+    <h3 style="color:#00ff9d; margin-top:0;">
+        <i class="fas fa-tag"></i> Harga Langganan
+    </h3>
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:20px; margin-top:20px;">
+        <div class="pricing-card">
+            <div style="font-size:0.8rem; opacity:0.6; margin-bottom:5px;">BASIC SUBSCRIPTION</div>
+            <div class="price">Rp 99.000</div>
+            <div class="period">/bulan</div>
+            <div style="font-size:0.8rem; margin-top:15px; text-align:left; opacity:0.8;">
+                <div>✅ 1 Device (Camera/Smart Plug)</div>
+                <div>✅ Energy Monitoring</div>
+                <div>✅ Switch On/Off Control</div>
+                <div>✅ Event-Driven Alerts</div>
+            </div>
+        </div>
+        <div class="pricing-card">
+            <div style="font-size:0.8rem; opacity:0.6; margin-bottom:5px;">TAMBAH DEVICE</div>
+            <div class="price">Rp 20.000</div>
+            <div class="period">/device/bulan</div>
+            <div style="font-size:0.8rem; margin-top:15px; opacity:0.8;">
+                Untuk setiap device tambahan setelah device pertama
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pending Payment Section -->
+{% if pending_payment %}
+<div class="stat-card" style="margin-bottom:30px; border-color:#ffd700;">
+    <h3 style="color:#ffd700; margin-bottom:20px;">
+        <i class="fas fa-exclamation-circle"></i> Menunggu Pembayaran ({{ pending_payment|length }})
+    </h3>
+    
+    <!-- Payment Methods -->
+    <div class="payment-methods">
+        <h4 style="margin-top:0; color:#ffd700;">
+            <i class="fas fa-university"></i> Metode Pembayaran
+        </h4>
+        <p style="font-size:0.9rem; opacity:0.8;">Transfer ke salah satu rekening berikut:</p>
+        
+        <div class="bank-info">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <div>
+                    <strong style="color:#00d9ff;">BCA</strong><br>
+                    <span style="font-size:1.1rem;">1234567890</span><br>
+                    <span style="opacity:0.7;">a.n. HomeAI Indonesia</span>
+                </div>
+                <button class="copy-btn" onclick="copyToClipboard('1234567890')">
+                    <i class="fas fa-copy"></i> Copy
+                </button>
+            </div>
+        </div>
+        
+        <div class="bank-info">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <strong style="color:#00d9ff;">Mandiri</strong><br>
+                    <span style="font-size:1.1rem;">0987654321</span><br>
+                    <span style="opacity:0.7;">a.n. HomeAI Indonesia</span>
+                </div>
+                <button class="copy-btn" onclick="copyToClipboard('0987654321')">
+                    <i class="fas fa-copy"></i> Copy
+                </button>
+            </div>
+        </div>
+        
+        <p style="font-size:0.8rem; color:#ffd700; margin-top:15px; margin-bottom:0;">
+            <i class="fas fa-info-circle"></i> 
+            Total yang harus dibayar: <strong>Rp {{ "{:,.0f}".format(total_pending) }}</strong>
+        </p>
+    </div>
+    
+    <!-- Device List to Pay -->
+    <form action="{{ url_for('billing.upload_payment') }}" method="POST" enctype="multipart/form-data">
+         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="margin-bottom:20px;">
+            <label style="display:block; margin-bottom:10px; font-weight:bold;">Pilih Perangkat:</label>
+            {% for device in pending_payment %}
+            <label class="device-item" style="cursor:pointer;">
+                <div style="display:flex; align-items:center; gap:15px;">
+                    <input type="checkbox" name="device_ids" value="{{ device.id }}" checked 
+                           style="width:20px; height:20px; accent-color:#00ff9d;">
+                    <div>
+                        <div style="font-weight:bold; color:white;">{{ device.device_name }}</div>
+                        <div style="font-size:0.8rem; opacity:0.6;">{{ device.device_type }} • {{ device.power_watts }}W</div>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="color:#ffd700; font-weight:bold;">Rp {{ "{:,.0f}".format(device.price or 20000) }}</div>
+                    <span class="status-badge status-pending-payment">BELUM BAYAR</span>
+                </div>
+            </label>
+            {% endfor %}
+        </div>
+        
+        <div style="margin-bottom:20px;">
+            <label style="display:block; margin-bottom:10px; font-weight:bold;">
+                <i class="fas fa-upload"></i> Upload Bukti Transfer:
+            </label>
+            <input type="file" name="proof" accept="image/*" required 
+                   style="width:100%; padding:12px; background:#0a0a14; border:1px solid rgba(255,255,255,0.2); color:white; border-radius:8px;">
+            <small style="opacity:0.5; display:block; margin-top:5px;">Format: JPG, PNG, GIF (Max 16MB)</small>
+        </div>
+        
+        <button type="submit" class="cyber-btn primary" style="width:100%; justify-content:center;">
+            <i class="fas fa-paper-plane"></i> Kirim Bukti Pembayaran
+        </button>
+    </form>
+</div>
+{% endif %}
+
+<!-- Pending Review Section -->
+{% if pending_review %}
+<div class="stat-card" style="margin-bottom:30px; border-color:#00d9ff;">
+    <h3 style="color:#00d9ff; margin-bottom:20px;">
+        <i class="fas fa-clock"></i> Menunggu Verifikasi ({{ pending_review|length }})
+    </h3>
+    <p style="opacity:0.7; font-size:0.9rem; margin-bottom:20px;">
+        Pembayaran sedang diverifikasi oleh admin. Proses maksimal 1x24 jam.
+    </p>
+    
+    {% for device in pending_review %}
+    <div class="device-item">
+        <div>
+            <div style="font-weight:bold; color:white;">{{ device.device_name }}</div>
+            <div style="font-size:0.8rem; opacity:0.6;">{{ device.device_type }} • {{ device.power_watts }}W</div>
+            <div style="font-size:0.75rem; opacity:0.5; margin-top:5px;">
+                Dibayar: {{ device.payment_date or '-' }}
+            </div>
+        </div>
+        <span class="status-badge status-pending-review">
+            <i class="fas fa-hourglass-half"></i> VERIFIKASI
+        </span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Rejected Section -->
+{% if rejected %}
+<div class="stat-card" style="margin-bottom:30px; border-color:#ff4444;">
+    <h3 style="color:#ff4444; margin-bottom:20px;">
+        <i class="fas fa-times-circle"></i> Ditolak ({{ rejected|length }})
+    </h3>
+    
+    {% for device in rejected %}
+    <div class="device-item" style="border-color:rgba(255,68,68,0.3);">
+        <div>
+            <div style="font-weight:bold; color:white;">{{ device.device_name }}</div>
+            <div style="font-size:0.8rem; opacity:0.6;">{{ device.device_type }} • {{ device.power_watts }}W</div>
+            <div style="font-size:0.8rem; color:#ff4444; margin-top:5px;">
+                <i class="fas fa-exclamation-triangle"></i> {{ device.reject_reason or 'Pembayaran tidak valid' }}
+            </div>
+        </div>
+        <form action="{{ url_for('billing.resubmit_payment', device_id=device.id) }}" method="POST">
+            <button type="submit" class="cyber-btn primary" style="padding:8px 15px;">
+                <i class="fas fa-redo"></i> Upload Ulang
+            </button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Active Devices Section -->
+{% if active_devices %}
+<div class="stat-card" style="border-color:#00ff9d;">
+    <h3 style="color:#00ff9d; margin-bottom:20px;">
+        <i class="fas fa-check-circle"></i> Perangkat Aktif ({{ active_devices|length }})
+    </h3>
+    
+    {% for device in active_devices %}
+    <div class="device-item" style="border-color:rgba(0,255,157,0.3);">
+        <div style="display:flex; align-items:center; gap:15px;">
+            <div style="width:45px; height:45px; background:rgba(0,255,157,0.1); border-radius:10px; display:flex; align-items:center; justify-content:center; color:#00ff9d;">
+                {% if device.device_type == 'AC' %}<i class="fas fa-wind"></i>
+                {% elif device.device_type == 'TV' %}<i class="fas fa-tv"></i>
+                {% elif device.device_type == 'Camera' %}<i class="fas fa-video"></i>
+                {% elif device.device_type == 'Light' %}<i class="fas fa-lightbulb"></i>
+                {% else %}<i class="fas fa-plug"></i>{% endif %}
+            </div>
+            <div>
+                <div style="font-weight:bold; color:white;">{{ device.device_name }}</div>
+                <div style="font-size:0.8rem; opacity:0.6;">{{ device.device_type }} • {{ device.power_watts }}W</div>
+            </div>
+        </div>
+        <span class="status-badge status-active">
+            <i class="fas fa-check"></i> AKTIF
+        </span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- No Devices State -->
+{% if not pending_payment and not pending_review and not active_devices and not rejected %}
+<div style="text-align:center; padding:60px 20px;">
+    <div style="font-size:4rem; color:#00ff9d; margin-bottom:20px;">
+        <i class="fas fa-check-circle"></i>
+    </div>
+    <h2 style="color:white; margin-bottom:10px;">Tidak Ada Tagihan</h2>
+    <p style="opacity:0.6;">Semua pembayaran sudah lunas. Tambah perangkat baru untuk mulai.</p>
+    
+    <a href="{{ url_for('devices.list_devices') }}" class="cyber-btn primary" style="margin-top:20px; display:inline-flex;">
+        <i class="fas fa-plus"></i> Tambah Perangkat Baru
+    </a>
+</div>
+{% endif %}
+
+<script>
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(function() {
+            alert('Nomor rekening berhasil dicopy!');
+        });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+{% block title %}Admin - Device Orders{% endblock %}
+
+{% block extra_css %}
+<style>
+    .order-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+        margin-bottom: 30px;
+    }
+    .stat-mini {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        padding: 15px;
+        text-align: center;
+    }
+    .stat-mini .number {
+        font-size: 2rem;
+        font-weight: bold;
+    }
+    .stat-mini .label {
+        font-size: 0.75rem;
+        opacity: 0.6;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .stat-mini.pending { border-color: #00d9ff; }
+    .stat-mini.pending .number { color: #00d9ff; }
+    .stat-mini.active { border-color: #00ff9d; }
+    .stat-mini.active .number { color: #00ff9d; }
+    .stat-mini.waiting { border-color: #ffd700; }
+    .stat-mini.waiting .number { color: #ffd700; }
+    
+    .order-card {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 15px;
+        transition: 0.3s;
+    }
+    .order-card:hover {
+        border-color: rgba(0,255,157,0.3);
+    }
+    .order-card.needs-action {
+        border-color: #00d9ff;
+        background: rgba(0,217,255,0.05);
+    }
+    
+    .proof-thumbnail {
+        width: 80px;
+        height: 80px;
+        object-fit: cover;
+        border-radius: 8px;
+        cursor: pointer;
+        border: 2px solid rgba(255,255,255,0.2);
+        transition: 0.3s;
+    }
+    .proof-thumbnail:hover {
+        border-color: #00ff9d;
+        transform: scale(1.05);
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 15px;
+    }
+    .btn-activate {
+        background: rgba(0,255,157,0.2);
+        color: #00ff9d;
+        border: 1px solid #00ff9d;
+        padding: 8px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: 0.3s;
+    }
+    .btn-activate:hover {
+        background: #00ff9d;
+        color: black;
+    }
+    .btn-reject {
+        background: rgba(255,68,68,0.2);
+        color: #ff4444;
+        border: 1px solid #ff4444;
+        padding: 8px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: 0.3s;
+    }
+    .btn-reject:hover {
+        background: #ff4444;
+        color: white;
+    }
+    
+    /* Modal for viewing proof */
+    .proof-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.9);
+        z-index: 9999;
+        align-items: center;
+        justify-content: center;
+    }
+    .proof-modal img {
+        max-width: 90%;
+        max-height: 90%;
+        border-radius: 10px;
+    }
+    .proof-modal .close-btn {
+        position: absolute;
+        top: 20px;
+        right: 30px;
+        font-size: 2rem;
+        color: white;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cyber-header">
+    <div class="header-title">
+        <h1>Device Orders</h1>
+        <p>Kelola pesanan & aktivasi perangkat</p>
+    </div>
+    <a href="{{ url_for('admin.admin_users') }}" class="cyber-btn secondary">
+        <i class="fas fa-arrow-left"></i> Back to Users
+    </a>
+</div>
+
+<!-- Order Stats -->
+<div class="order-stats">
+    <div class="stat-mini pending">
+        <div class="number">{{ stats.pending_review }}</div>
+        <div class="label">Perlu Review</div>
+    </div>
+    <div class="stat-mini waiting">
+        <div class="number">{{ stats.pending_payment }}</div>
+        <div class="label">Menunggu Bayar</div>
+    </div>
+    <div class="stat-mini active">
+        <div class="number">{{ stats.active }}</div>
+        <div class="label">Aktif</div>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+    <div class="cyber-notification notification-{{ category }}" style="margin-bottom:20px;">
+        <i class="fas fa-info-circle"></i> <span>{{ message }}</span>
+    </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<!-- Pending Review Section (Priority) -->
+{% set pending_review_orders = orders | selectattr('status', 'equalto', 'pending_review') | list %}
+{% if pending_review_orders %}
+<div class="stat-card" style="margin-bottom:30px; border-color:#00d9ff;">
+    <h3 style="color:#00d9ff; margin-bottom:20px;">
+        <i class="fas fa-clock"></i> Perlu Verifikasi ({{ pending_review_orders|length }})
+    </h3>
+    
+    {% for order in pending_review_orders %}
+    <div class="order-card needs-action">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:15px;">
+            <div style="flex:1; min-width:200px;">
+                <div style="font-weight:bold; font-size:1.1rem; color:white;">{{ order.device_name }}</div>
+                <div style="font-size:0.85rem; opacity:0.6; margin-top:3px;">
+                    {{ order.device_type }} • {{ order.power_watts }}W • {{ order.location or 'No location' }}
+                </div>
+                <div style="margin-top:10px;">
+                    <span style="font-size:0.8rem; color:#00d9ff;">
+                        <i class="fas fa-user"></i> {{ order.user_name or 'Unknown' }}
+                    </span>
+                    <span style="font-size:0.8rem; opacity:0.5; margin-left:15px;">
+                        {{ order.user_email or '' }}
+                    </span>
+                </div>
+                <div style="margin-top:8px;">
+                    <span style="font-size:0.85rem; color:#ffd700; font-weight:bold;">
+                        Rp {{ "{:,.0f}".format(order.price or 20000) }}
+                    </span>
+                    <span style="font-size:0.75rem; opacity:0.5; margin-left:10px;">
+                        Dibayar: {{ order.payment_date or '-' }}
+                    </span>
+                </div>
+            </div>
+            
+            <!-- Payment Proof -->
+            <div style="text-align:center;">
+                {% if order.payment_proof %}
+                <img src="{{ url_for('media.serve_media', filename='payments/' + order.payment_proof) }}" 
+                     class="proof-thumbnail" 
+                     onclick="viewProof(this.src)"
+                     alt="Bukti Bayar">
+                <div style="font-size:0.7rem; opacity:0.5; margin-top:5px;">Klik untuk zoom</div>
+                {% else %}
+                <div style="width:80px; height:80px; background:rgba(255,255,255,0.05); border-radius:8px; display:flex; align-items:center; justify-content:center;">
+                    <i class="fas fa-image" style="opacity:0.3;"></i>
+                </div>
+                <div style="font-size:0.7rem; opacity:0.5; margin-top:5px;">No proof</div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <form action="{{ url_for('admin.activate_device', device_id=order.id) }}" method="POST" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn-activate" onclick="return confirm('Aktivasi device {{ order.device_name }}?')">
+                    <i class="fas fa-check"></i> ACTIVATE
+                </button>
+            </form>
+            
+            <button type="button" class="btn-reject" onclick="openRejectModal({{ order.id }}, '{{ order.device_name }}')">
+                <i class="fas fa-times"></i> REJECT
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- All Orders Table -->
+<div class="stat-card" style="overflow-x:auto;">
+    <h3 style="margin-bottom:20px;">
+        <i class="fas fa-list"></i> Semua Orders
+    </h3>
+    
+    <table style="width:100%; border-collapse:collapse;">
+        <thead>
+            <tr style="border-bottom:2px solid rgba(255,255,255,0.1);">
+                <th style="padding:15px; text-align:left; color:#00ff9d;">Device</th>
+                <th style="padding:15px; text-align:left; color:#00ff9d;">User</th>
+                <th style="padding:15px; text-align:left; color:#00ff9d;">Price</th>
+                <th style="padding:15px; text-align:left; color:#00ff9d;">Status</th>
+                <th style="padding:15px; text-align:left; color:#00ff9d;">Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                <td style="padding:15px; color:white;">
+                    <div style="font-weight:bold;">{{ order.device_name }}</div>
+                    <div style="font-size:0.8rem; opacity:0.6;">{{ order.device_type }} • {{ order.power_watts }}W</div>
+                </td>
+                <td style="padding:15px; color:white;">{{ order.user_name or 'Unknown' }}</td>
+                <td style="padding:15px; color:#ffd700; font-weight:bold;">
+                    Rp {{ "{:,.0f}".format(order.price or 20000) }}
+                </td>
+                <td style="padding:15px;">
+                    {% if order.status == 'active' %}
+                        <span style="background:rgba(0,255,157,0.1); color:#00ff9d; padding:4px 10px; border-radius:10px; font-size:0.8rem;">
+                            <i class="fas fa-check-circle"></i> ACTIVE
+                        </span>
+                    {% elif order.status == 'pending_review' %}
+                        <span style="background:rgba(0,217,255,0.1); color:#00d9ff; padding:4px 10px; border-radius:10px; font-size:0.8rem;">
+                            <i class="fas fa-clock"></i> PENDING REVIEW
+                        </span>
+                    {% elif order.status == 'pending_payment' %}
+                        <span style="background:rgba(255,215,0,0.1); color:#ffd700; padding:4px 10px; border-radius:10px; font-size:0.8rem;">
+                            <i class="fas fa-hourglass-half"></i> WAITING PAYMENT
+                        </span>
+                    {% elif order.status == 'rejected' %}
+                        <span style="background:rgba(255,68,68,0.1); color:#ff4444; padding:4px 10px; border-radius:10px; font-size:0.8rem;">
+                            <i class="fas fa-times-circle"></i> REJECTED
+                        </span>
+                    {% else %}
+                        <span style="background:rgba(255,255,255,0.1); color:white; padding:4px 10px; border-radius:10px; font-size:0.8rem;">
+                            {{ order.status|upper }}
+                        </span>
+                    {% endif %}
+                </td>
+                <td style="padding:15px; color:white; opacity:0.6; font-size:0.85rem;">
+                    {{ order.created_at[:10] if order.created_at else '-' }}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" style="padding:30px; text-align:center; opacity:0.5;">
+                    Belum ada orders
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Proof Modal -->
+<div id="proofModal" class="proof-modal" onclick="closeProofModal()">
+    <span class="close-btn">&times;</span>
+    <img id="proofImage" src="" alt="Bukti Pembayaran">
+</div>
+
+<!-- Reject Modal -->
+<div id="rejectModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:#1a1a2e; padding:30px; border-radius:15px; border:1px solid #ff4444; width:90%; max-width:400px;">
+        <h3 style="margin-top:0; color:#ff4444;">
+            <i class="fas fa-times-circle"></i> Reject Device
+        </h3>
+        <p id="rejectDeviceName" style="opacity:0.7;"></p>
+        
+        <form id="rejectForm" method="POST">
+            <div style="margin:20px 0;">
+                <label style="display:block; margin-bottom:10px;">Alasan Penolakan:</label>
+                <select name="reason" style="width:100%; padding:10px; background:#000; color:white; border:1px solid #333; border-radius:5px;">
+                    <option value="Bukti pembayaran tidak valid">Bukti pembayaran tidak valid</option>
+                    <option value="Nominal tidak sesuai">Nominal tidak sesuai</option>
+                    <option value="Bukti pembayaran blur/tidak jelas">Bukti pembayaran blur/tidak jelas</option>
+                    <option value="Pembayaran ke rekening yang salah">Pembayaran ke rekening yang salah</option>
+                    <option value="Lainnya">Lainnya</option>
+                </select>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button type="button" onclick="closeRejectModal()" style="flex:1; padding:10px; background:transparent; border:1px solid #666; color:white; border-radius:5px; cursor:pointer;">Batal</button>
+                <button type="submit" style="flex:1; padding:10px; background:#ff4444; border:none; color:white; font-weight:bold; border-radius:5px; cursor:pointer;">Reject</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function viewProof(src) {
+        document.getElementById('proofImage').src = src;
+        document.getElementById('proofModal').style.display = 'flex';
+    }
+    
+    function closeProofModal() {
+        document.getElementById('proofModal').style.display = 'none';
+    }
+    
+    function openRejectModal(deviceId, deviceName) {
+        document.getElementById('rejectDeviceName').textContent = 'Device: ' + deviceName;
+        document.getElementById('rejectForm').action = '/admin/reject/' + deviceId;
+        document.getElementById('rejectModal').style.display = 'flex';
+    }
+    
+    function closeRejectModal() {
+        document.getElementById('rejectModal').style.display = 'none';
+    }
+    
+    // Close modals on outside click
+    window.onclick = function(e) {
+        if (e.target == document.getElementById('rejectModal')) {
+            closeRejectModal();
+        }
+    }
+    
+    // Close proof modal on ESC
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeProofModal();
+            closeRejectModal();
+        }
+    });
+</script>
+{% endblock %}

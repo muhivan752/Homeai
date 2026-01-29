@@ -1,0 +1,234 @@
+<div class="cyber-sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <div class="cyber-brand">HOME<strong>AI</strong></div>
+        <p class="brand-tagline">Smart Home Platform</p>
+    </div>
+
+    <nav class="cyber-nav">
+        <div class="nav-section-title">MAIN MENU</div>
+        <a href="{{ url_for('main.dashboard') }}" class="nav-item {{ 'active' if request.endpoint == 'main.dashboard' }}">
+            <i class="fas fa-chart-line"></i> <span>Dashboard</span>
+        </a>
+        <a href="{{ url_for('devices.list_devices') }}" class="nav-item {{ 'active' if 'devices' in request.endpoint }}">
+            <i class="fas fa-plug"></i> <span>Devices</span>
+        </a>
+        <a href="{{ url_for('billing.billing') }}" class="nav-item {{ 'active' if 'billing' in request.endpoint }}">
+            <i class="fas fa-file-invoice-dollar"></i> <span>Billing</span>
+        </a>
+
+        <div class="nav-section-title">ACCOUNT</div>
+        <a href="{{ url_for('main.profile') }}" class="nav-item {{ 'active' if request.endpoint == 'main.profile' }}">
+            <i class="fas fa-user"></i> <span>Profile</span>
+        </a>
+        
+        {% if session.role == 'admin' %}
+        <div class="nav-section-title" style="color: #ff00c8;">ADMIN AREA</div>
+        <a href="{{ url_for('admin.admin_users') }}" class="nav-item {{ 'active' if request.endpoint == 'admin.admin_users' }}">
+            <i class="fas fa-users"></i> <span>Users List</span>
+        </a>
+        <a href="{{ url_for('admin.admin_orders') }}" class="nav-item {{ 'active' if request.endpoint == 'admin.admin_orders' }}">
+            <i class="fas fa-clipboard-check"></i> <span>Orders</span>
+            {% set pending = namespace(count=0) %}
+            <!-- Pending badge will be shown if there are pending orders -->
+        </a>
+        {% endif %}
+    </nav>
+
+    <!-- User Info & Logout - Always at bottom -->
+    <div class="sidebar-footer">
+        <div class="user-info">
+            <div class="user-avatar">
+                {% if g.user and g.user.avatar %}
+                    <img src="{{ url_for('media.serve_media', filename=g.user.avatar) }}" alt="Avatar">
+                {% else %}
+                    <span class="avatar-placeholder">{{ g.user.name[:2]|upper if g.user else 'U' }}</span>
+                {% endif %}
+            </div>
+            <div class="user-details">
+                <span class="user-name">{{ g.user.name if g.user else 'User' }}</span>
+                <span class="user-plan">{{ g.user.plan_name if g.user else 'Free Plan' }}</span>
+            </div>
+        </div>
+        <a href="{{ url_for('auth.logout') }}" class="logout-btn">
+            <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
+        </a>
+    </div>
+</div>
+
+<style>
+.cyber-sidebar {
+    width: 250px;
+    background: linear-gradient(180deg, #050510 0%, #0a0a1a 100%);
+    height: 100vh;
+    position: fixed;
+    left: 0;
+    top: 0;
+    border-right: 1px solid rgba(0, 255, 157, 0.2);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease;
+    z-index: 1000;
+    overflow-y: auto;
+}
+
+.sidebar-header {
+    padding: 25px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.cyber-brand {
+    font-size: 1.5em;
+    color: #00ff9d;
+    letter-spacing: 3px;
+}
+
+.brand-tagline {
+    font-size: 0.7em;
+    color: rgba(255, 255, 255, 0.4);
+    margin-top: 5px;
+    letter-spacing: 1px;
+}
+
+.cyber-nav {
+    flex: 1;
+    padding: 15px 10px;
+    overflow-y: auto;
+}
+
+.nav-section-title {
+    font-size: 0.7em;
+    color: #00ff9d;
+    letter-spacing: 2px;
+    padding: 15px 15px 10px;
+    opacity: 0.7;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    text-decoration: none;
+    padding: 12px 15px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    margin-bottom: 3px;
+    font-size: 0.95em;
+}
+
+.nav-item i {
+    width: 20px;
+    text-align: center;
+    font-size: 1em;
+}
+
+.nav-item:hover {
+    background: rgba(0, 255, 157, 0.08);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.nav-item.active {
+    background: rgba(0, 255, 157, 0.15);
+    color: #00ff9d;
+    border-left: 3px solid #00ff9d;
+}
+
+/* Sidebar Footer - User & Logout */
+.sidebar-footer {
+    padding: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 10px;
+    margin-bottom: 10px;
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid #00ff9d;
+    flex-shrink: 0;
+}
+
+.user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #00ff9d, #00d9ff);
+    color: #000;
+    font-weight: bold;
+    font-size: 0.9em;
+}
+
+.user-details {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.user-name {
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.9em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.user-plan {
+    color: #00ff9d;
+    font-size: 0.7em;
+    letter-spacing: 1px;
+}
+
+.logout-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px;
+    background: rgba(255, 68, 68, 0.1);
+    border: 1px solid rgba(255, 68, 68, 0.3);
+    border-radius: 8px;
+    color: #ff4444;
+    text-decoration: none;
+    font-size: 0.9em;
+    transition: all 0.3s ease;
+}
+
+.logout-btn:hover {
+    background: rgba(255, 68, 68, 0.2);
+    border-color: #ff4444;
+    box-shadow: 0 0 15px rgba(255, 68, 68, 0.2);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .cyber-sidebar {
+        transform: translateX(-100%);
+        width: 280px;
+    }
+
+    .cyber-sidebar.active {
+        transform: translateX(0);
+    }
+}
+</style>

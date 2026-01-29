@@ -1,0 +1,135 @@
+
+{% extends "base.html" %}
+{% block title %}User Management{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Styling Tabel Admin */
+    .admin-container { padding: 20px; }
+    .stat-card { background: #0f172a; border: 1px solid rgba(0, 255, 157, 0.2); border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th { text-align: left; padding: 15px; color: #00ff9d; border-bottom: 2px solid rgba(255,255,255,0.1); font-size: 0.9rem; text-transform: uppercase; }
+    td { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); color: white; }
+    
+    /* Tombol Aksi */
+    .btn-action {
+        width: 32px; height: 32px; border-radius: 6px; border: none; cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center;
+        transition: 0.2s; margin-right: 5px;
+    }
+    .btn-view { background: rgba(0, 217, 255, 0.2); color: #00d9ff; }
+    .btn-edit { background: rgba(255, 215, 0, 0.2); color: #ffd700; }
+    .btn-del { background: rgba(255, 68, 68, 0.2); color: #ff4444; }
+    
+    .btn-action:hover { transform: scale(1.1); filter: brightness(1.2); }
+
+    /* Badge */
+    .badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }
+    .role-admin { background: #ff00c8; color: white; }
+    .role-user { background: #00d9ff; color: black; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px;">
+        <div>
+            <h1 style="margin:0;">User Management</h1>
+            <p style="opacity:0.6; margin-top:5px;">Total Users: {{ stats.total_users }} | Total Devices: {{ stats.total_devices }}</p>
+        </div>
+        <!-- UPDATED: url_for('admin_sync') -> url_for('admin.admin_sync') -->
+        <a href="{{ url_for('admin.admin_sync') }}" class="cyber-btn secondary"><i class="fas fa-sync"></i> Refresh Data</a>
+    </div>
+
+    <div class="stat-card" style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Plan</th>
+                    <th>Devices</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>
+                        <div style="font-weight:bold;">{{ user.name }}</div>
+                        <div style="font-size:0.8rem; opacity:0.6;">{{ user.email }}</div>
+                    </td>
+                    <td>
+                        <span class="badge {{ 'role-admin' if user.role == 'admin' else 'role-user' }}">
+                            {{ user.role }}
+                        </span>
+                    </td>
+                    <td>{{ user.plan_name }}</td>
+                    <td>
+                        <span style="font-size:1.2rem; font-weight:bold; color:white;">{{ user.device_count }}</span> Unit
+                    </td>
+                    <td style="display:flex;">
+                        <!-- UPDATED: url_for('admin_user_detail') -> url_for('admin.admin_user_detail') -->
+                        <a href="{{ url_for('admin.admin_user_detail', uid=user.id) }}" class="btn-action btn-view" title="Detail">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        
+                        <button onclick="openPlanModal('{{ user.id }}', '{{ user.plan_name }}')" class="btn-action btn-edit" title="Ganti Plan">
+                            <i class="fas fa-credit-card"></i>
+                        </button>
+
+                        {% if user.role != 'admin' %}
+                        <!-- UPDATED: url_for('delete_user') -> url_for('admin.delete_user') -->
+                        <form action="{{ url_for('admin.delete_user', uid=user.id) }}" method="POST" onsubmit="return confirm('Hapus user {{ user.name }}? Data tidak bisa kembali.');">
+                            <button type="submit" class="btn-action btn-del" title="Hapus User">
+                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="planModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:#1a1a2e; padding:30px; border-radius:15px; border:1px solid #00ff9d; width:90%; max-width:350px;">
+        <h3 style="margin-top:0; color:#00ff9d;">Update Plan</h3>
+        <!-- UPDATED: url_for('update_plan') -> url_for('admin.update_plan') -->
+        <form action="{{ url_for('admin.update_plan') }}" method="POST">
+            <input type="hidden" name="user_id" id="planUserId">
+            <div style="margin:20px 0;">
+                <label style="display:block; margin-bottom:10px;">Pilih Paket:</label>
+                <select name="plan" id="planSelect" style="width:100%; padding:10px; background:#000; color:white; border:1px solid #333; border-radius:5px;">
+                    <option value="Basic">Basic (Free)</option>
+                    <option value="Premium">Premium (Rp 50rb)</option>
+                    <option value="Enterprise">Enterprise (Rp 100rb)</option>
+                </select>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button type="button" onclick="document.getElementById('planModal').style.display='none'" style="flex:1; padding:10px; background:transparent; border:1px solid #666; color:white; border-radius:5px;">Batal</button>
+                <button type="submit" style="flex:1; padding:10px; background:#00ff9d; border:none; color:black; font-weight:bold; border-radius:5px;">Simpan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openPlanModal(uid, currentPlan) {
+        document.getElementById('planUserId').value = uid;
+        document.getElementById('planSelect').value = currentPlan;
+        document.getElementById('planModal').style.display = 'flex';
+    }
+    
+    // Klik luar modal untuk tutup
+    window.onclick = function(e) {
+        if (e.target == document.getElementById('planModal')) {
+            document.getElementById('planModal').style.display = 'none';
+        }
+    }
+</script>
+{% endblock %}

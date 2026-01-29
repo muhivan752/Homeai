@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Admin - Detail User{% endblock %}
+{% block content %}
+<div class="cyber-header">
+    <!-- UPDATED: url_for('admin_users') -> url_for('admin.admin_users') -->
+    <a href="{{ url_for('admin.admin_users') }}" class="cyber-btn secondary" style="margin-bottom:15px; text-decoration:none; display:inline-block;"><i class="fas fa-arrow-left"></i> Kembali</a>
+    <h1>Detail: {{ user.name }}</h1>
+</div>
+<div class="stats-grid" style="grid-template-columns: 1fr 2fr; gap:20px;">
+    <div class="stat-card" style="text-align:center;">
+        <!-- UPDATED: url_for('serve_media') -> url_for('media.serve_media') -->
+        <img src="{{ url_for('media.serve_media', filename=user.avatar if user.avatar else 'default.jpg') }}" style="width:120px; border-radius:10px; border:2px solid #00ff9d;">
+        <h3>{{ user.email }}</h3>
+        <p>Plan: {{ user.plan_name }}</p>
+    </div>
+    <div class="stat-card">
+        <h3>Inventaris Perangkat</h3>
+        <table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="text-align:left; border-bottom:1px solid #333;"><th style="padding:10px;">Alat</th><th style="padding:10px;">Status</th></tr></thead>
+            <tbody>
+                {% for d in devices %}
+                <tr style="border-bottom:1px solid #222;">
+                    <td style="padding:10px;">{{ d.device_name }}</td>
+                    <td style="padding:10px;"><span style="color:{{ '#00ff9d' if d.status == 'active' else '#ffd700' }}">{{ d.status|upper }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
