@@ -119,6 +119,21 @@ def init_db():
         )
     """)
 
+    # ===============================
+    # SEED DEFAULT ADMIN (if not exists)
+    # ===============================
+    from werkzeug.security import generate_password_hash
+
+    # Check if admin exists
+    c.execute("SELECT id FROM users WHERE email = ?", ("admin@homeai.local",))
+    if not c.fetchone():
+        admin_password = generate_password_hash("admin123")
+        c.execute("""
+            INSERT INTO users (name, email, password, role, plan_name, verified)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, ("Administrator", "admin@homeai.local", admin_password, "admin", "Premium", 1))
+        print("Default admin created: admin@homeai.local / admin123")
+
     conn.commit()
     conn.close()
 
