@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Tambah Device - HomeAI{% endblock %}
+
+{% block content %}
+<div class="cyber-header">
+    <div class="header-title">
+        <h1><i class="fas fa-plus-circle"></i> Tambah Device Baru</h1>
+        <p>Daftarkan perangkat IoT baru ke sistem HomeAI</p>
+    </div>
+    <a href="{{ url_for('devices.device_list') }}" class="cyber-btn secondary">
+        <i class="fas fa-arrow-left"></i> Kembali
+    </a>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+    <div class="cyber-notification notification-{{ category }}">
+        <i class="fas fa-info-circle"></i> <span>{{ message }}</span>
+    </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<div class="form-container" style="max-width: 600px; margin: 0 auto;">
+    <div class="cyber-card" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(0,255,157,0.3); border-radius: 15px; padding: 30px;">
+
+        <form method="POST" action="{{ url_for('devices.add_device') }}">
+            <!-- Device Name -->
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-size: 0.9rem; color: #00ff9d;">
+                    <i class="fas fa-tag"></i> Nama Perangkat *
+                </label>
+                <input
+                    type="text"
+                    name="name"
+                    required
+                    placeholder="Contoh: CCTV Depan, AC Kamar Utama"
+                    style="width: 100%; padding: 12px 15px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 8px; font-size: 1rem;"
+                >
+            </div>
+
+            <!-- Device Type -->
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-size: 0.9rem; color: #00ff9d;">
+                    <i class="fas fa-microchip"></i> Tipe Device *
+                </label>
+                <select
+                    name="device_type"
+                    required
+                    style="width: 100%; padding: 12px 15px; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 8px; font-size: 1rem;"
+                >
+                    <option value="">-- Pilih Tipe Device --</option>
+                    <option value="Camera">CCTV / Security Camera</option>
+                    <option value="AC">Air Conditioner (AC)</option>
+                    <option value="TV">Smart TV</option>
+                    <option value="Light">Lampu Pintar</option>
+                    <option value="Lock">Smart Door Lock</option>
+                    <option value="Router">WiFi Router</option>
+                    <option value="Fan">Kipas Angin</option>
+                    <option value="Fridge">Kulkas</option>
+                    <option value="Sensor">Sensor (Suhu/Gerak/dll)</option>
+                    <option value="Other">Lainnya</option>
+                </select>
+            </div>
+
+            <!-- Location -->
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-size: 0.9rem; color: #00ff9d;">
+                    <i class="fas fa-map-marker-alt"></i> Lokasi
+                </label>
+                <input
+                    type="text"
+                    name="location"
+                    placeholder="Contoh: Teras Depan, Ruang Tamu, Kamar Utama"
+                    style="width: 100%; padding: 12px 15px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 8px; font-size: 1rem;"
+                >
+            </div>
+
+            <!-- Power Watts -->
+            <div class="form-group" style="margin-bottom: 25px;">
+                <label style="display: block; margin-bottom: 8px; font-size: 0.9rem; color: #00ff9d;">
+                    <i class="fas fa-bolt"></i> Estimasi Daya (Watt)
+                </label>
+                <input
+                    type="number"
+                    name="power_watts"
+                    value="100"
+                    min="1"
+                    max="10000"
+                    placeholder="100"
+                    style="width: 100%; padding: 12px 15px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 8px; font-size: 1rem;"
+                >
+                <small style="display: block; margin-top: 8px; opacity: 0.6; font-size: 0.8rem;">
+                    <i class="fas fa-info-circle"></i> Panduan: CCTV (10-20W), AC (500-1500W), TV (50-150W), Lampu (5-20W), Kulkas (100-400W)
+                </small>
+            </div>
+
+            <!-- Info Box -->
+            <div style="background: rgba(0,217,255,0.1); border: 1px solid rgba(0,217,255,0.3); border-radius: 10px; padding: 15px; margin-bottom: 25px;">
+                <h4 style="margin: 0 0 10px; color: #00d9ff; font-size: 0.9rem;">
+                    <i class="fas fa-info-circle"></i> Informasi Penting
+                </h4>
+                <ul style="margin: 0; padding-left: 20px; font-size: 0.85rem; opacity: 0.8; line-height: 1.6;">
+                    <li>Setelah mendaftar, Anda perlu melakukan pembayaran untuk aktivasi</li>
+                    <li>Device akan aktif setelah pembayaran diverifikasi admin (1x24 jam)</li>
+                    <li>Anda akan mendapat device token untuk konfigurasi hardware</li>
+                </ul>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="cyber-btn primary" style="width: 100%; justify-content: center; padding: 15px; font-size: 1rem;">
+                <i class="fas fa-plus"></i> Tambah Device
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
