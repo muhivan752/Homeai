@@ -684,3 +684,275 @@ def create_default_handlers(dispatcher: EventDispatcher) -> None:
     )
 
     logger.info("Default handlers registered")
+
+
+def create_escalation_handlers(
+    dispatcher: EventDispatcher,
+    escalation_engine,
+    confirmation_service,
+    trusted_contacts_service,
+    decision_service,
+) -> None:
+    """
+    Register escalation handlers for emergency events.
+
+    This integrates the escalation system with the event dispatcher.
+
+    FLOW:
+    1. Emergency event arrives
+    2. Escalation engine decides what to do
+    3. Immediate actions are executed
+    4. Confirmation request is created (30 second window)
+    5. Deferred actions wait for confirmation or timeout
+    """
+    from contracts.types import (
+        EmergencyType,
+        EscalationAction,
+        DecisionType,
+        ActorType,
+    )
+    from services.escalation import EscalationContext
+
+    def emergency_escalation_handler(event: BaseEvent):
+        """
+        Handle emergency events through escalation engine.
+
+        This runs in the dedicated emergency thread.
+        """
+        # Extract context from event
+        payload = event.payload if hasattr(event, 'payload') else {}
+
+        # Map event type to emergency type
+        event_to_emergency = {
+            "IntrusionDetected": EmergencyType.INTRUSION,
+            "FireDetected": EmergencyType.FIRE,
+            "ViolenceDetected": EmergencyType.VIOLENCE,
+            "WaterLeakDetected": EmergencyType.WATER_LEAK,
+            "PowerEmergency": EmergencyType.POWER_EMERGENCY,
+            "PanicButtonPressed": EmergencyType.PANIC,
+        }
+
+        emergency_type = event_to_emergency.get(
+            event.event_type,
+            EmergencyType.INTRUSION  # Default
+        )
+
+        # Build escalation context
+        context = EscalationContext(
+            user_id=payload.get("user_id", 0),
+            event_id=event.event_id,
+            event_type=event.event_type,
+            emergency_type=emergency_type,
+            confidence=payload.get("confidence", 0.5),
+            location=payload.get("location"),
+            device_id=payload.get("device_id"),
+            multiple_sensors=payload.get("multiple_sensors", False),
+            duration_seconds=payload.get("duration_seconds", 0),
+            corroborating_events=payload.get("corroborating_events", []),
+        )
+
+        # Get escalation decision
+        decision = escalation_engine.decide(context)
+
+        # Log the decision
+        decision_id = decision_service.log_decision(
+            trigger_event_id=event.event_id,
+            trigger_event_type=event.event_type,
+            decision_type=_map_action_to_decision_type(decision.immediate_actions),
+            action_taken=f"Immediate: {[a.value for a in decision.immediate_actions]}",
+            reason=decision.reason,
+            actor_type=ActorType.SYSTEM,
+            confidence=context.confidence,
+        )
+
+        # Execute immediate actions
+        for action in decision.immediate_actions:
+            _execute_action(
+                action, context, trusted_contacts_service, decision_service, decision_id
+            )
+
+        # Create confirmation request if needed
+        if decision.requires_confirmation and decision.deferred_actions:
+            fallback_actions = ",".join(a.value for a in decision.deferred_actions)
+            confirmation_service.create_confirmation(
+                user_id=context.user_id,
+                event_id=event.event_id,
+                event_type=emergency_type.value,
+                fallback_action=fallback_actions,
+                window_seconds=decision.confirmation_window_seconds,
+            )
+
+            logger.info(
+                "Confirmation created for %s | Window: %ds | Fallback: %s",
+                event.event_id,
+                decision.confirmation_window_seconds,
+                fallback_actions
+            )
+
+    def _map_action_to_decision_type(actions: list) -> DecisionType:
+        """Map escalation actions to decision type for logging."""
+        if not actions:
+            return DecisionType.NO_ACTION
+
+        # Priority order
+        if any(a in actions for a in [
+            EscalationAction.CALL_POLICE,
+            EscalationAction.CALL_FIRE,
+            EscalationAction.CALL_AMBULANCE
+        ]):
+            return DecisionType.CALL_EMERGENCY
+
+        if EscalationAction.ALERT_TRUSTED in actions:
+            return DecisionType.ALERT_FAMILY
+
+        if EscalationAction.ALERT_OWNER in actions:
+            return DecisionType.ALERT_USER
+
+        if EscalationAction.LOCKDOWN in actions:
+            return DecisionType.LOCKDOWN
+
+        if EscalationAction.DISABLE_DEVICE in actions:
+            return DecisionType.DISABLE_DEVICE
+
+        return DecisionType.ESCALATE
+
+    def _execute_action(
+        action: EscalationAction,
+        context: EscalationContext,
+        trusted_contacts_service,
+        decision_service,
+        parent_decision_id: str,
+    ):
+        """Execute a single escalation action."""
+        logger.info(
+            "Executing action: %s for event %s",
+            action.value, context.event_id
+        )
+
+        if action == EscalationAction.LOCAL_ALARM:
+            # TODO: Trigger local alarm via edge
+            logger.info("LOCAL_ALARM triggered for %s", context.location or "unknown")
+
+        elif action == EscalationAction.ALERT_OWNER:
+            # TODO: Send notification to owner
+            logger.info("ALERT_OWNER: Notifying user %d", context.user_id)
+
+        elif action == EscalationAction.ALERT_FAMILY:
+            # TODO: Send notification to family members
+            logger.info("ALERT_FAMILY: Notifying family of user %d", context.user_id)
+
+        elif action == EscalationAction.ALERT_TRUSTED:
+            # Get trusted contacts for this event type
+            contacts = trusted_contacts_service.get_contacts_for_event(
+                context.user_id,
+                context.emergency_type.value
+            )
+            for contact in contacts:
+                logger.info(
+                    "ALERT_TRUSTED: Notifying %s (%s) via %s",
+                    contact["name"],
+                    contact["relationship"],
+                    "telegram" if contact.get("telegram_chat_id") else "phone/email"
+                )
+                # TODO: Actually send notification
+
+        elif action == EscalationAction.LOCKDOWN:
+            # TODO: Trigger lockdown mode
+            logger.warning("LOCKDOWN triggered for user %d", context.user_id)
+
+        elif action == EscalationAction.DISABLE_DEVICE:
+            if context.device_id:
+                # TODO: Disable device
+                logger.warning("DISABLE_DEVICE: Device %d disabled", context.device_id)
+
+        # Note: CALL_POLICE, CALL_FIRE, CALL_AMBULANCE, RECORD_EVIDENCE
+        # require explicit consent and are typically deferred actions
+
+    # Register the emergency escalation handler
+    dispatcher.register_handler(
+        name="emergency_escalation",
+        handler=emergency_escalation_handler,
+        categories={EventCategory.EMERGENCY},
+        priority=HandlerPriority.HIGH,
+        is_emergency_handler=True,
+    )
+
+    # Register confirmation callbacks
+    def on_confirmed_threat(confirmation):
+        """User confirmed this is a real threat - execute deferred actions."""
+        logger.warning(
+            "THREAT CONFIRMED by user for event %s - executing deferred actions",
+            confirmation["event_id"]
+        )
+        # Parse fallback actions
+        actions = confirmation["fallback_action"].split(",")
+        for action_str in actions:
+            try:
+                action = EscalationAction(action_str.strip())
+                # TODO: Execute action with full context
+                logger.info("Executing deferred action: %s", action.value)
+            except ValueError:
+                logger.warning("Unknown action: %s", action_str)
+
+        # Log decision
+        decision_service.log_decision(
+            trigger_event_id=confirmation["event_id"],
+            trigger_event_type=confirmation["event_type"],
+            decision_type=DecisionType.ESCALATE,
+            action_taken=f"User confirmed threat, executing: {confirmation['fallback_action']}",
+            reason="User explicitly confirmed situation is a threat",
+            actor_type=ActorType.USER,
+            actor_id=confirmation["user_id"],
+        )
+
+    def on_confirmed_safe(confirmation):
+        """User confirmed situation is safe - cancel escalation."""
+        logger.info(
+            "SAFE CONFIRMED by user for event %s - escalation cancelled",
+            confirmation["event_id"]
+        )
+
+        # Log decision
+        decision_service.log_decision(
+            trigger_event_id=confirmation["event_id"],
+            trigger_event_type=confirmation["event_type"],
+            decision_type=DecisionType.NO_ACTION,
+            action_taken="Escalation cancelled by user",
+            reason="User confirmed situation is safe (false alarm)",
+            actor_type=ActorType.USER,
+            actor_id=confirmation["user_id"],
+        )
+
+    def on_confirmation_expired(confirmation):
+        """Confirmation window expired - execute fallback actions."""
+        logger.warning(
+            "CONFIRMATION EXPIRED for event %s - executing fallback: %s",
+            confirmation["event_id"],
+            confirmation["fallback_action"]
+        )
+
+        # Parse and execute fallback actions
+        actions = confirmation["fallback_action"].split(",")
+        for action_str in actions:
+            try:
+                action = EscalationAction(action_str.strip())
+                logger.info("Executing fallback action: %s", action.value)
+                # TODO: Execute action
+            except ValueError:
+                logger.warning("Unknown fallback action: %s", action_str)
+
+        # Log decision
+        decision_service.log_decision(
+            trigger_event_id=confirmation["event_id"],
+            trigger_event_type=confirmation["event_type"],
+            decision_type=DecisionType.ESCALATE,
+            action_taken=f"Auto-escalation after timeout: {confirmation['fallback_action']}",
+            reason="User did not respond within confirmation window",
+            actor_type=ActorType.SYSTEM,
+        )
+
+    confirmation_service.register_callback("on_confirmed_threat", on_confirmed_threat)
+    confirmation_service.register_callback("on_confirmed_safe", on_confirmed_safe)
+    confirmation_service.register_callback("on_expired", on_confirmation_expired)
+
+    logger.info("Escalation handlers registered")

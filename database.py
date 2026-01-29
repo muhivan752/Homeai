@@ -253,6 +253,207 @@ def init_db():
     """)
 
     # ===============================
+    # TRUSTED CONTACTS (For emergency alerts)
+    # ===============================
+    # Who to notify when emergency happens (not authorities)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS trusted_contacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            relationship TEXT NOT NULL,
+            phone TEXT,
+            email TEXT,
+            telegram_chat_id TEXT,
+
+            -- Priority (lower = higher priority)
+            priority INTEGER DEFAULT 1,
+
+            -- What events to notify for
+            notify_intrusion INTEGER DEFAULT 1,
+            notify_fire INTEGER DEFAULT 1,
+            notify_violence INTEGER DEFAULT 1,
+            notify_emergency INTEGER DEFAULT 1,
+
+            -- Status
+            is_active INTEGER DEFAULT 1,
+            verified_at INTEGER,
+
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER,
+
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    c.execute("""
+        CREATE INDEX IF NOT EXISTS idx_trusted_contacts_user
+        ON trusted_contacts(user_id, priority)
+    """)
+
+    # ===============================
+    # ESCALATION POLICIES (User-configurable rules)
+    # ===============================
+    # Defines HOW system should respond to each event type
+    # This is the "policy-driven autonomy" - user explicitly delegates
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS escalation_policies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            event_type TEXT NOT NULL CHECK (event_type IN (
+                'intrusion', 'fire', 'violence', 'water_leak', 'power_emergency', 'panic'
+            )),
+
+            -- Confirmation settings
+            confirmation_required INTEGER DEFAULT 1,
+            confirmation_window_seconds INTEGER DEFAULT 30,
+
+            -- Auto-escalation thresholds
+            auto_escalate_confidence REAL DEFAULT 0.95,
+            auto_escalate_after_seconds INTEGER DEFAULT 30,
+
+            -- What actions are allowed
+            allow_local_alarm INTEGER DEFAULT 1,
+            allow_alert_owner INTEGER DEFAULT 1,
+            allow_alert_family INTEGER DEFAULT 1,
+            allow_alert_trusted INTEGER DEFAULT 1,
+            allow_call_authority INTEGER DEFAULT 0,
+            allow_recording INTEGER DEFAULT 0,
+
+            -- Authority settings (only if allow_call_authority = 1)
+            authority_type TEXT,
+            authority_number TEXT,
+
+            -- Policy status
+            is_active INTEGER DEFAULT 1,
+            acknowledged_at INTEGER,
+
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER,
+
+            UNIQUE(user_id, event_type),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # ===============================
+    # USER CONSENTS (Privacy & Recording)
+    # ===============================
+    # Explicit consent tracking - NO silent recording/escalation
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS user_consents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            consent_type TEXT NOT NULL CHECK (consent_type IN (
+                'emergency_recording',
+                'evidence_storage',
+                'trusted_contact_alert',
+                'authority_escalation',
+                'data_retention',
+                'terms_of_service',
+                'privacy_policy',
+                'system_limitations'
+            )),
+
+            -- Consent details
+            granted INTEGER DEFAULT 0,
+            granted_at INTEGER,
+            revoked_at INTEGER,
+
+            -- What was shown to user
+            consent_version TEXT NOT NULL,
+            consent_text_hash TEXT NOT NULL,
+
+            -- How consent was given
+            consent_method TEXT NOT NULL CHECK (consent_method IN (
+                'checkbox', 'signature', 'voice', 'biometric'
+            )),
+
+            -- IP/device for audit
+            ip_address TEXT,
+            user_agent TEXT,
+
+            created_at INTEGER NOT NULL,
+
+            UNIQUE(user_id, consent_type),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # ===============================
+    # PENDING CONFIRMATIONS (30-second window)
+    # ===============================
+    # Tracks events waiting for user confirmation before escalation
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS pending_confirmations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            event_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+
+            -- Confirmation window
+            created_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL,
+
+            -- What happens if no response
+            fallback_action TEXT NOT NULL,
+
+            -- Status
+            status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN (
+                'pending', 'confirmed_safe', 'confirmed_threat', 'expired', 'cancelled'
+            )),
+
+            -- User response
+            responded_at INTEGER,
+            response_method TEXT,
+
+            -- Escalation tracking
+            escalated INTEGER DEFAULT 0,
+            escalated_at INTEGER,
+            escalation_decision_id TEXT,
+
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (event_id) REFERENCES events(event_id)
+        )
+    """)
+
+    c.execute("""
+        CREATE INDEX IF NOT EXISTS idx_pending_confirmations_status
+        ON pending_confirmations(status, expires_at)
+    """)
+
+    # ===============================
+    # USER ACKNOWLEDGMENTS (Active consent flow)
+    # ===============================
+    # Tracks that user has actively acknowledged system limitations
+    # This is NOT passive ToS - user must read and check each item
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS user_acknowledgments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+
+            -- What was acknowledged
+            ack_system_not_replacement INTEGER DEFAULT 0,
+            ack_internet_dependency INTEGER DEFAULT 0,
+            ack_false_positive_possible INTEGER DEFAULT 0,
+            ack_evidence_not_court_proof INTEGER DEFAULT 0,
+            ack_response_time_not_guaranteed INTEGER DEFAULT 0,
+
+            -- Completion
+            all_acknowledged INTEGER DEFAULT 0,
+            acknowledged_at INTEGER,
+
+            -- Version tracking
+            acknowledgment_version TEXT NOT NULL,
+
+            created_at INTEGER NOT NULL,
+
+            UNIQUE(user_id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # ===============================
     # SEED DEFAULT ADMIN (if not exists)
     # ===============================
     from werkzeug.security import generate_password_hash

@@ -9,6 +9,7 @@
 # SERVICE CATEGORIES:
 # 1. Core Business Services (user, device, energy, admin)
 # 2. Event Services (event, evidence, decision, dispatcher)
+# 3. Escalation Services (escalation, trusted_contacts, confirmation, acknowledgment)
 
 from services.user import UserService
 from services.device import DeviceService
@@ -19,6 +20,10 @@ from services.evidence import EvidenceService
 from services.decision import DecisionService
 from services.dispatcher import EventDispatcher, create_default_handlers
 from services.integrity import IntegrityService
+from services.escalation import EscalationEngine
+from services.trusted_contacts import TrustedContactsService
+from services.confirmation import ConfirmationService
+from services.acknowledgment import AcknowledgmentService
 
 
 def init_services(db_path: str) -> dict:
@@ -52,6 +57,15 @@ def init_services(db_path: str) -> dict:
     decision_service = DecisionService(db_path)
     integrity_service = IntegrityService(db_path)
 
+    # Escalation services
+    escalation_engine = EscalationEngine(db_path)
+    trusted_contacts_service = TrustedContactsService(db_path)
+    confirmation_service = ConfirmationService(db_path)
+    acknowledgment_service = AcknowledgmentService(db_path)
+
+    # Start confirmation watchdog
+    confirmation_service.start_watchdog()
+
     # Event dispatcher (depends on event services)
     dispatcher = EventDispatcher(
         event_service=event_service,
@@ -61,6 +75,16 @@ def init_services(db_path: str) -> dict:
 
     # Register default handlers
     create_default_handlers(dispatcher)
+
+    # Register escalation handlers
+    from services.dispatcher import create_escalation_handlers
+    create_escalation_handlers(
+        dispatcher,
+        escalation_engine,
+        confirmation_service,
+        trusted_contacts_service,
+        decision_service,
+    )
 
     return {
         # Core Business
@@ -75,6 +99,12 @@ def init_services(db_path: str) -> dict:
         "decision": decision_service,
         "dispatcher": dispatcher,
         "integrity": integrity_service,
+
+        # Escalation System
+        "escalation": escalation_engine,
+        "trusted_contacts": trusted_contacts_service,
+        "confirmation": confirmation_service,
+        "acknowledgment": acknowledgment_service,
     }
 
 
@@ -186,6 +216,50 @@ def get_service_info() -> dict:
                 "create_block", "verify_chain",
                 "get_daily_digest", "record_external_anchor",
                 "get_latest_block", "get_anchor_status"
+            ]
+        },
+
+        # ===== ESCALATION SERVICES =====
+        "escalation": {
+            "class": "EscalationEngine",
+            "description": "Core escalation decision engine with policy-driven autonomy",
+            "methods": [
+                "decide", "set_policy", "get_user_policies",
+                "grant_consent", "revoke_consent", "get_user_consents", "has_consent",
+                "invalidate_cache"
+            ]
+        },
+        "trusted_contacts": {
+            "class": "TrustedContactsService",
+            "description": "Trusted contacts for emergency notifications",
+            "methods": [
+                "add_contact", "update_contact", "remove_contact",
+                "get_contact", "get_user_contacts",
+                "get_contacts_for_event", "get_verified_contacts_for_event",
+                "verify_contact", "set_notification_preferences",
+                "get_contact_count", "has_verified_contacts"
+            ]
+        },
+        "confirmation": {
+            "class": "ConfirmationService",
+            "description": "30-second confirmation window for emergency events",
+            "methods": [
+                "create_confirmation", "confirm_safe", "confirm_threat",
+                "cancel_confirmation", "extend_window",
+                "get_pending", "get_pending_for_event", "get_confirmation_history",
+                "get_time_remaining", "get_stats",
+                "start_watchdog", "stop_watchdog", "register_callback"
+            ]
+        },
+        "acknowledgment": {
+            "class": "AcknowledgmentService",
+            "description": "Active acknowledgment flow for system limitations",
+            "methods": [
+                "get_acknowledgment_status", "get_acknowledgment_text",
+                "get_all_acknowledgment_texts", "acknowledge_item",
+                "is_fully_acknowledged", "requires_reacknowledgment",
+                "get_pending_acknowledgments", "reset_acknowledgments",
+                "get_acknowledgment_stats"
             ]
         },
     }
