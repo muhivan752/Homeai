@@ -120,6 +120,132 @@ def init_db():
     """)
 
     # ===============================
+    # EVENT STORE (All Events)
+    # ===============================
+    # Central event log - all events pass through here
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id TEXT UNIQUE NOT NULL,
+            event_type TEXT NOT NULL,
+            category TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            source TEXT NOT NULL,
+            version INTEGER DEFAULT 1,
+            payload TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+
+            -- Indexing
+            user_id INTEGER,
+            device_id INTEGER
+        )
+    """)
+
+    # Index for fast lookup by category and time
+    c.execute("""
+        CREATE INDEX IF NOT EXISTS idx_events_category_time
+        ON events(category, created_at DESC)
+    """)
+
+    # Index for user-specific events
+    c.execute("""
+        CREATE INDEX IF NOT EXISTS idx_events_user
+        ON events(user_id, created_at DESC)
+    """)
+
+    # ===============================
+    # EVENT EVIDENCE (Immutable - EMERGENCY Only)
+    # ===============================
+    # CRITICAL: This table is APPEND-ONLY for legal compliance
+    # - No UPDATE allowed
+    # - No DELETE allowed (except by retention policy after 7 years)
+    # - All records have integrity hash
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS event_evidence (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id TEXT UNIQUE NOT NULL,
+            event_type TEXT NOT NULL,
+            category TEXT NOT NULL CHECK (category = 'emergency'),
+
+            -- Evidence Data
+            payload TEXT NOT NULL,
+            raw_evidence BLOB,
+            evidence_type TEXT,
+
+            -- Integrity
+            integrity_hash TEXT NOT NULL,
+            integrity_status TEXT DEFAULT 'verified',
+
+            -- Immutability markers
+            created_at INTEGER NOT NULL,
+            is_immutable INTEGER DEFAULT 1,
+
+            -- Retention
+            retention_until INTEGER NOT NULL,
+            archived_at INTEGER,
+            archive_location TEXT,
+
+            -- Foreign key to main events table
+            FOREIGN KEY (event_id) REFERENCES events(event_id)
+        )
+    """)
+
+    # No UPDATE trigger - enforce immutability at application level
+    # (SQLite triggers for true immutability would be added in production)
+
+    # ===============================
+    # DECISION RECORDS (AI/Automation Decisions)
+    # ===============================
+    # Every automated decision must be logged here
+    # "Why did the system decide X?" must be answerable
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS decision_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            decision_id TEXT UNIQUE NOT NULL,
+
+            -- Link to trigger
+            trigger_event_id TEXT NOT NULL,
+            trigger_event_type TEXT NOT NULL,
+
+            -- Decision details
+            decision_type TEXT NOT NULL,
+            action_taken TEXT NOT NULL,
+            reason TEXT NOT NULL,
+
+            -- Confidence & Model info
+            confidence REAL,
+            model_name TEXT,
+            model_version TEXT,
+
+            -- Actor (who/what made the decision)
+            actor_type TEXT NOT NULL,
+            actor_id INTEGER,
+
+            -- Outcome tracking
+            outcome TEXT,
+            outcome_at INTEGER,
+
+            -- Timing
+            created_at INTEGER NOT NULL,
+
+            -- Foreign key
+            FOREIGN KEY (trigger_event_id) REFERENCES events(event_id)
+        )
+    """)
+
+    # Index for finding decisions by event
+    c.execute("""
+        CREATE INDEX IF NOT EXISTS idx_decisions_trigger
+        ON decision_records(trigger_event_id)
+    """)
+
+    # Index for decision audit by type
+    c.execute("""
+        CREATE INDEX IF NOT EXISTS idx_decisions_type_time
+        ON decision_records(decision_type, created_at DESC)
+    """)
+
+    # ===============================
     # SEED DEFAULT ADMIN (if not exists)
     # ===============================
     from werkzeug.security import generate_password_hash
