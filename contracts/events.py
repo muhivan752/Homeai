@@ -83,23 +83,62 @@ class BaseEvent:
         """Returns the class name as event type."""
         return self.__class__.__name__
 
-    def compute_hash(self) -> str:
+    def compute_hash(self, include_evidence: bool = True) -> str:
         """
-        Compute SHA-256 hash of event data for integrity verification.
-        Used for EMERGENCY events to ensure evidence cannot be tampered.
+        Compute SHA-256 hash of COMPLETE event data for integrity verification.
+
+        CRITICAL: This hash MUST include:
+        1. All metadata (event_id, type, category, severity, source, timestamp)
+        2. Full payload (all subclass fields)
+        3. Evidence hash (if present and include_evidence=True)
+
+        This is the LEGAL INTEGRITY HASH - if any field changes, hash changes.
+
+        Args:
+            include_evidence: If True, include raw_evidence in hash (default True)
+
+        Returns:
+            SHA-256 hex digest
         """
+        # Get full payload including all subclass fields
+        full_data = self.to_full_dict()
+
+        # Handle raw_evidence separately (bytes can't be JSON serialized)
+        evidence_hash = None
+        if include_evidence and hasattr(self, 'raw_evidence') and self.raw_evidence:
+            evidence_hash = hashlib.sha256(self.raw_evidence).hexdigest()
+            # Remove raw_evidence from dict, add its hash
+            full_data.pop('raw_evidence', None)
+            full_data['_evidence_hash'] = evidence_hash
+
         # Create deterministic JSON representation
-        data = {
-            "event_id": self.event_id,
-            "event_type": self.event_type,
-            "version": self.version,
-            "category": self.category.value,
-            "severity": self.severity.value,
-            "source": self.source.value,
-            "timestamp": self.timestamp,
-        }
-        json_str = json.dumps(data, sort_keys=True)
+        json_str = json.dumps(full_data, sort_keys=True, default=str)
         return hashlib.sha256(json_str.encode()).hexdigest()
+
+    def to_full_dict(self) -> Dict[str, Any]:
+        """
+        Serialize COMPLETE event to dictionary including ALL subclass fields.
+
+        Unlike to_dict() which only includes base fields, this includes everything.
+        Used for hashing and complete serialization.
+        """
+        from dataclasses import fields as dataclass_fields
+
+        result = {}
+        for f in dataclass_fields(self):
+            value = getattr(self, f.name)
+            # Convert enums to their values
+            if hasattr(value, 'value'):
+                value = value.value
+            # Skip bytes (handle separately)
+            if isinstance(value, bytes):
+                continue
+            result[f.name] = value
+
+        # Add computed fields
+        result['event_type'] = self.event_type
+
+        return result
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize event to dictionary for storage/transmission."""

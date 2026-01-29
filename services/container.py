@@ -18,6 +18,7 @@ from services.event import EventService
 from services.evidence import EvidenceService
 from services.decision import DecisionService
 from services.dispatcher import EventDispatcher, create_default_handlers
+from services.integrity import IntegrityService
 
 
 def init_services(db_path: str) -> dict:
@@ -49,6 +50,7 @@ def init_services(db_path: str) -> dict:
     event_service = EventService(db_path)
     evidence_service = EvidenceService(db_path)
     decision_service = DecisionService(db_path)
+    integrity_service = IntegrityService(db_path)
 
     # Event dispatcher (depends on event services)
     dispatcher = EventDispatcher(
@@ -72,6 +74,7 @@ def init_services(db_path: str) -> dict:
         "evidence": evidence_service,
         "decision": decision_service,
         "dispatcher": dispatcher,
+        "integrity": integrity_service,
     }
 
 
@@ -168,12 +171,21 @@ def get_service_info() -> dict:
         },
         "dispatcher": {
             "class": "EventDispatcher",
-            "description": "Event routing with pub/sub pattern",
+            "description": "Event routing with pub/sub pattern, isolated emergency pipeline",
             "methods": [
                 "register_handler", "unregister_handler",
                 "enable_handler", "disable_handler",
                 "dispatch", "dispatch_batch",
-                "get_handler_info", "get_dispatch_log", "get_dispatch_stats"
+                "get_handler_info", "get_dispatch_log", "get_stats", "shutdown"
+            ]
+        },
+        "integrity": {
+            "class": "IntegrityService",
+            "description": "Hash chain & external anchoring for legal compliance",
+            "methods": [
+                "create_block", "verify_chain",
+                "get_daily_digest", "record_external_anchor",
+                "get_latest_block", "get_anchor_status"
             ]
         },
     }

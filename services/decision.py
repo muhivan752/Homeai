@@ -11,10 +11,15 @@
 import json
 import time
 import uuid
-from typing import Optional, List, Dict, Any
+import logging
+from typing import Optional, List, Dict, Any, Union
 
 from services.base import BaseService
-from contracts.types import DecisionType, EventSource
+from contracts.types import DecisionType, ActorType
+
+
+# Structured logging
+logger = logging.getLogger("homeai.decision")
 
 
 class DecisionService(BaseService):
@@ -34,20 +39,55 @@ class DecisionService(BaseService):
     - Disabling a device automatically
     - Escalating to family member
     - Triggering lockdown
+
+    VOCABULARY CONSTRAINTS:
+    - decision_type: MUST be DecisionType enum value
+    - actor_type: MUST be ActorType enum value
+    - action_taken: Free text but should be descriptive
     """
 
     def _generate_decision_id(self) -> str:
         """Generate unique decision ID."""
         return f"dec_{uuid.uuid4().hex[:12]}"
 
+    def _validate_decision_type(self, decision_type: Union[DecisionType, str]) -> str:
+        """Validate and convert decision_type to string."""
+        if isinstance(decision_type, DecisionType):
+            return decision_type.value
+        if isinstance(decision_type, str):
+            # Validate it's a valid enum value
+            valid_values = {e.value for e in DecisionType}
+            if decision_type not in valid_values:
+                raise ValueError(
+                    f"Invalid decision_type: {decision_type}. "
+                    f"Must be one of: {valid_values}"
+                )
+            return decision_type
+        raise TypeError(f"decision_type must be DecisionType or str, got {type(decision_type)}")
+
+    def _validate_actor_type(self, actor_type: Union[ActorType, str]) -> str:
+        """Validate and convert actor_type to string."""
+        if isinstance(actor_type, ActorType):
+            return actor_type.value
+        if isinstance(actor_type, str):
+            # Validate it's a valid enum value
+            valid_values = {e.value for e in ActorType}
+            if actor_type not in valid_values:
+                raise ValueError(
+                    f"Invalid actor_type: {actor_type}. "
+                    f"Must be one of: {valid_values}"
+                )
+            return actor_type
+        raise TypeError(f"actor_type must be ActorType or str, got {type(actor_type)}")
+
     def log_decision(
         self,
         trigger_event_id: str,
         trigger_event_type: str,
-        decision_type: DecisionType,
+        decision_type: Union[DecisionType, str],
         action_taken: str,
         reason: str,
-        actor_type: str = "system",
+        actor_type: Union[ActorType, str] = ActorType.SYSTEM,
         actor_id: int = None,
         confidence: float = None,
         model_name: str = None,
@@ -59,10 +99,10 @@ class DecisionService(BaseService):
         Args:
             trigger_event_id: The event that triggered this decision
             trigger_event_type: Type of trigger event
-            decision_type: Category of decision (from DecisionType enum)
+            decision_type: Category of decision (MUST be DecisionType)
             action_taken: What action was taken (human readable)
             reason: Why this decision was made (human readable)
-            actor_type: Who/what made the decision ("system", "model", "rule")
+            actor_type: Who/what made the decision (MUST be ActorType)
             actor_id: Optional ID of the actor (e.g., user_id if admin override)
             confidence: Model confidence score (0.0 - 1.0) if ML-based
             model_name: Name of the model that made the decision
@@ -71,18 +111,26 @@ class DecisionService(BaseService):
         Returns:
             decision_id if successful, None if failed
 
+        Raises:
+            ValueError: If decision_type or actor_type is invalid
+
         Example:
             decision_service.log_decision(
                 trigger_event_id="evt_abc123",
                 trigger_event_type="IntrusionDetected",
                 decision_type=DecisionType.CALL_EMERGENCY,
                 action_taken="Called 911 emergency services",
-                reason="Unknown person detected at front door with 95% confidence, owner unreachable for 5 minutes",
+                reason="Unknown person at front door, owner unreachable for 5 minutes",
+                actor_type=ActorType.MODEL,
                 confidence=0.95,
                 model_name="face_recognition_v2",
                 model_version="2.3.1"
             )
         """
+        # Validate constrained fields
+        decision_type_str = self._validate_decision_type(decision_type)
+        actor_type_str = self._validate_actor_type(actor_type)
+
         decision_id = self._generate_decision_id()
         now = int(time.time())
 
@@ -98,13 +146,13 @@ class DecisionService(BaseService):
                 decision_id,
                 trigger_event_id,
                 trigger_event_type,
-                decision_type.value if isinstance(decision_type, DecisionType) else decision_type,
+                decision_type_str,
                 action_taken,
                 reason,
                 confidence,
                 model_name,
                 model_version,
-                actor_type,
+                actor_type_str,
                 actor_id,
                 now,
             ),
@@ -112,8 +160,13 @@ class DecisionService(BaseService):
         )
 
         if result:
-            print(f"[DECISION LOGGED] {decision_id} | Type: {decision_type} | Event: {trigger_event_id}")
+            logger.info(
+                "Decision logged: %s | Type: %s | Actor: %s | Event: %s",
+                decision_id, decision_type_str, actor_type_str, trigger_event_id
+            )
             return decision_id
+
+        logger.error("Failed to log decision for event %s", trigger_event_id)
         return None
 
     def log_no_action_decision(
@@ -121,6 +174,7 @@ class DecisionService(BaseService):
         trigger_event_id: str,
         trigger_event_type: str,
         reason: str,
+        actor_type: Union[ActorType, str] = ActorType.SYSTEM,
         confidence: float = None,
     ) -> Optional[str]:
         """
@@ -133,6 +187,7 @@ class DecisionService(BaseService):
             trigger_event_id: The event that was evaluated
             trigger_event_type: Type of trigger event
             reason: Why no action was taken
+            actor_type: Who/what made the decision
             confidence: Confidence in the no-action decision
 
         Returns:
@@ -144,6 +199,7 @@ class DecisionService(BaseService):
             decision_type=DecisionType.NO_ACTION,
             action_taken="No action taken",
             reason=reason,
+            actor_type=actor_type,
             confidence=confidence,
         )
 
@@ -174,7 +230,13 @@ class DecisionService(BaseService):
             (outcome, now, decision_id),
             commit=True
         )
-        return result is not None and result > 0
+
+        if result and result > 0:
+            logger.debug("Decision %s outcome updated: %s", decision_id, outcome)
+            return True
+
+        logger.warning("Failed to update outcome for decision %s", decision_id)
+        return False
 
     def get_decision(self, decision_id: str) -> Optional[Dict[str, Any]]:
         """Get single decision by ID."""
@@ -197,10 +259,11 @@ class DecisionService(BaseService):
 
     def get_decisions_by_type(
         self,
-        decision_type: DecisionType,
+        decision_type: Union[DecisionType, str],
         limit: int = 100
     ) -> List[Dict[str, Any]]:
         """Get decisions filtered by type."""
+        decision_type_str = self._validate_decision_type(decision_type)
         return self.run_query(
             """
             SELECT * FROM decision_records
@@ -208,7 +271,24 @@ class DecisionService(BaseService):
             ORDER BY created_at DESC
             LIMIT ?
             """,
-            (decision_type.value if isinstance(decision_type, DecisionType) else decision_type, limit)
+            (decision_type_str, limit)
+        ) or []
+
+    def get_decisions_by_actor(
+        self,
+        actor_type: Union[ActorType, str],
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """Get decisions filtered by actor type."""
+        actor_type_str = self._validate_actor_type(actor_type)
+        return self.run_query(
+            """
+            SELECT * FROM decision_records
+            WHERE actor_type = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (actor_type_str, limit)
         ) or []
 
     def get_recent_decisions(
@@ -265,6 +345,14 @@ class DecisionService(BaseService):
             """
         )
 
+        by_actor = self.run_query(
+            """
+            SELECT actor_type, COUNT(*) as count
+            FROM decision_records
+            GROUP BY actor_type
+            """
+        )
+
         with_outcome = self.run_query(
             "SELECT COUNT(*) as c FROM decision_records WHERE outcome IS NOT NULL",
             one=True
@@ -273,6 +361,7 @@ class DecisionService(BaseService):
         return {
             "total_decisions": total['c'] if total else 0,
             "by_type": {r['decision_type']: r['count'] for r in (by_type or [])},
+            "by_actor": {r['actor_type']: r['count'] for r in (by_actor or [])},
             "with_outcome": with_outcome['c'] if with_outcome else 0,
         }
 
@@ -290,6 +379,7 @@ class DecisionService(BaseService):
                 "decision": str (what was decided),
                 "action": str (what action was taken),
                 "reason": str (why),
+                "actor": str (who decided),
                 "confidence": float or None,
                 "outcome": str or None
             }
@@ -301,14 +391,19 @@ class DecisionService(BaseService):
         from datetime import datetime
         when = datetime.fromtimestamp(decision['created_at']).strftime('%Y-%m-%d %H:%M:%S')
 
-        return {
+        explanation = {
             "decision_id": decision['decision_id'],
             "when": when,
             "trigger": f"{decision['trigger_event_type']} (event: {decision['trigger_event_id']})",
             "decision": decision['decision_type'],
             "action": decision['action_taken'],
             "reason": decision['reason'],
+            "actor": f"{decision['actor_type']}" + (f" (id: {decision['actor_id']})" if decision.get('actor_id') else ""),
             "confidence": decision.get('confidence'),
-            "model": f"{decision.get('model_name', 'N/A')} v{decision.get('model_version', 'N/A')}" if decision.get('model_name') else None,
             "outcome": decision.get('outcome'),
         }
+
+        if decision.get('model_name'):
+            explanation["model"] = f"{decision['model_name']} v{decision.get('model_version', 'N/A')}"
+
+        return explanation

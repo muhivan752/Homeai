@@ -123,14 +123,15 @@ def init_db():
     # EVENT STORE (All Events)
     # ===============================
     # Central event log - all events pass through here
+    # CHECK constraints enforce valid enum values
     c.execute("""
         CREATE TABLE IF NOT EXISTS events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             event_id TEXT UNIQUE NOT NULL,
             event_type TEXT NOT NULL,
-            category TEXT NOT NULL,
-            severity TEXT NOT NULL,
-            source TEXT NOT NULL,
+            category TEXT NOT NULL CHECK (category IN ('user', 'anomaly', 'emergency')),
+            severity TEXT NOT NULL CHECK (severity IN ('debug', 'info', 'warning', 'critical', 'fatal')),
+            source TEXT NOT NULL CHECK (source IN ('edge', 'backend', 'user', 'admin', 'system', 'external')),
             version INTEGER DEFAULT 1,
             payload TEXT NOT NULL,
             created_at INTEGER NOT NULL,
@@ -198,6 +199,7 @@ def init_db():
     # ===============================
     # Every automated decision must be logged here
     # "Why did the system decide X?" must be answerable
+    # CHECK constraints enforce valid enum values
     c.execute("""
         CREATE TABLE IF NOT EXISTS decision_records (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -207,18 +209,23 @@ def init_db():
             trigger_event_id TEXT NOT NULL,
             trigger_event_type TEXT NOT NULL,
 
-            -- Decision details
-            decision_type TEXT NOT NULL,
+            -- Decision details (constrained vocabulary)
+            decision_type TEXT NOT NULL CHECK (decision_type IN (
+                'alert_user', 'alert_family', 'call_emergency', 'disable_device',
+                'lockdown', 'escalate', 'auto_recovery', 'no_action'
+            )),
             action_taken TEXT NOT NULL,
             reason TEXT NOT NULL,
 
             -- Confidence & Model info
-            confidence REAL,
+            confidence REAL CHECK (confidence IS NULL OR (confidence >= 0.0 AND confidence <= 1.0)),
             model_name TEXT,
             model_version TEXT,
 
-            -- Actor (who/what made the decision)
-            actor_type TEXT NOT NULL,
+            -- Actor (who/what made the decision) - constrained
+            actor_type TEXT NOT NULL CHECK (actor_type IN (
+                'system', 'model', 'rule', 'user', 'admin', 'edge', 'external'
+            )),
             actor_id INTEGER,
 
             -- Outcome tracking

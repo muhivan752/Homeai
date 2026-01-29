@@ -78,6 +78,21 @@ class DecisionType(str, Enum):
     NO_ACTION = "no_action"             # Decided to take no action (logged anyway)
 
 
+class ActorType(str, Enum):
+    """
+    WHO/WHAT made a decision.
+
+    Used in DecisionService to track decision source.
+    """
+    SYSTEM = "system"       # Automated system rule
+    MODEL = "model"         # AI/ML model
+    RULE = "rule"           # Business rule engine
+    USER = "user"           # User override/manual
+    ADMIN = "admin"         # Admin override
+    EDGE = "edge"           # Edge device decision
+    EXTERNAL = "external"   # External service
+
+
 class EvidenceIntegrity(str, Enum):
     """
     INTEGRITY STATUS of stored evidence.
