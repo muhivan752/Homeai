@@ -10,6 +10,7 @@
 # 1. Core Business Services (user, device, energy, admin)
 # 2. Event Services (event, evidence, decision, dispatcher)
 # 3. Escalation Services (escalation, trusted_contacts, confirmation, acknowledgment)
+# 4. Companion Services (companion)
 
 from services.user import UserService
 from services.device import DeviceService
@@ -24,6 +25,7 @@ from services.escalation import EscalationEngine
 from services.trusted_contacts import TrustedContactsService
 from services.confirmation import ConfirmationService
 from services.acknowledgment import AcknowledgmentService
+from services.companion import CompanionService
 
 
 def init_services(db_path: str) -> dict:
@@ -62,6 +64,9 @@ def init_services(db_path: str) -> dict:
     trusted_contacts_service = TrustedContactsService(db_path)
     confirmation_service = ConfirmationService(db_path)
     acknowledgment_service = AcknowledgmentService(db_path)
+
+    # Companion services
+    companion_service = CompanionService(db_path)
 
     # Start confirmation watchdog
     confirmation_service.start_watchdog()
@@ -105,6 +110,9 @@ def init_services(db_path: str) -> dict:
         "trusted_contacts": trusted_contacts_service,
         "confirmation": confirmation_service,
         "acknowledgment": acknowledgment_service,
+
+        # Companion System
+        "companion": companion_service,
     }
 
 
@@ -260,6 +268,17 @@ def get_service_info() -> dict:
                 "is_fully_acknowledged", "requires_reacknowledgment",
                 "get_pending_acknowledgments", "reset_acknowledgments",
                 "get_acknowledgment_stats"
+            ]
+        },
+
+        # ===== COMPANION SERVICES =====
+        "companion": {
+            "class": "CompanionService",
+            "description": "Companion mode notification routing and message composition",
+            "methods": [
+                "should_notify", "log_notification",
+                "set_user_preferences", "compose_daily_digest",
+                "get_notification_stats"
             ]
         },
     }

@@ -454,6 +454,82 @@ def init_db():
     """)
 
     # ===============================
+    # COMPANION MODE: NOTIFICATION PREFERENCES
+    # ===============================
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS notification_preferences (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            preferences TEXT NOT NULL,  -- JSON blob with all settings
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER,
+            UNIQUE(user_id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # ===============================
+    # COMPANION MODE: NOTIFICATION LOG
+    # ===============================
+    # Tracks what was sent AND what was suppressed (for learning)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS notification_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            event_type TEXT NOT NULL,
+            location TEXT,
+            decision TEXT NOT NULL,  -- send, suppress_routine, etc.
+            reason TEXT,
+            message_sent INTEGER DEFAULT 0,
+            user_response TEXT,  -- view, ignore, later, etc.
+            response_at INTEGER,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # ===============================
+    # COMPANION MODE: ACTIVITY BASELINE
+    # ===============================
+    # Passive learning of "normal" patterns
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS activity_baseline (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            location TEXT NOT NULL,
+            day_of_week INTEGER,  -- 0=Monday, 6=Sunday
+            hour_of_day INTEGER,  -- 0-23
+            event_type TEXT NOT NULL,
+            avg_count REAL DEFAULT 0,
+            std_deviation REAL DEFAULT 0,
+            sample_count INTEGER DEFAULT 0,
+            last_updated INTEGER NOT NULL,
+            UNIQUE(user_id, location, day_of_week, hour_of_day, event_type),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # ===============================
+    # COMPANION MODE: KNOWN PERSONS (IDENTITY)
+    # ===============================
+    # Simple whitelist for Stage 1
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS known_persons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            relationship TEXT,  -- family, friend, helper, etc.
+            photo_reference TEXT,  -- Path to reference photo
+            is_child INTEGER DEFAULT 0,
+            expected_schedule TEXT,  -- JSON: {"school_return": "15:30"}
+            is_active INTEGER DEFAULT 1,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # ===============================
     # SEED DEFAULT ADMIN (if not exists)
     # ===============================
     from werkzeug.security import generate_password_hash

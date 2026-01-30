@@ -265,3 +265,140 @@ CONFIDENCE_THRESHOLDS = {
     "high": 0.90,     # Full escalation minus authority
     "very_high": 0.95 # Auto-escalate even to authority (if consented)
 }
+
+
+# ===============================
+# COMPANION MODE TYPES
+# ===============================
+# HomeAI Companion = Friend, not robot
+# Default = SILENT, Offer > Push, User chooses
+
+class CompanionEventType(str, Enum):
+    """
+    Event types for Companion Mode (non-emergency).
+
+    These events follow the Inform → Offer → User Chooses pattern.
+    Default behavior for most: SILENT unless unusual.
+    """
+    # === PRESENCE EVENTS ===
+    FAMILY_ARRIVED = "family_arrived"           # Known family member home
+    FAMILY_LEFT = "family_left"                 # Known family member left
+    CHILD_ARRIVED = "child_arrived"             # Child home (special tracking)
+    CHILD_LEFT = "child_left"                   # Child left
+    GUEST_ARRIVED = "guest_arrived"             # Known guest/visitor
+    UNKNOWN_PERSON = "unknown_person"           # Person not in whitelist
+
+    # === ACTIVITY EVENTS ===
+    MOTION_DETECTED = "motion_detected"         # General motion
+    DOOR_OPENED = "door_opened"                 # Door opened
+    DOOR_CLOSED = "door_closed"                 # Door closed
+    DOORBELL_RING = "doorbell_ring"             # Doorbell pressed
+    ACTIVITY_IN_ZONE = "activity_in_zone"       # Activity in specific zone
+    UNUSUAL_ACTIVITY = "unusual_activity"       # Anomaly vs baseline
+
+    # === DELIVERY EVENTS ===
+    COURIER_ARRIVED = "courier_arrived"         # Delivery person at door
+    PACKAGE_DELIVERED = "package_delivered"     # Package left
+    PACKAGE_PICKED_UP = "package_picked_up"     # Package taken
+
+    # === CHILD/PET EVENTS ===
+    CHILD_CRYING = "child_crying"               # Audio: child crying
+    CHILD_SLEEPING = "child_sleeping"           # Child asleep (never auto-notify)
+    PET_ACTIVITY = "pet_activity"               # Pet detected
+
+    # === ENVIRONMENTAL EVENTS ===
+    TEMPERATURE_ANOMALY = "temperature_anomaly" # Unusual temperature
+    HUMIDITY_ANOMALY = "humidity_anomaly"       # Unusual humidity
+    AIR_QUALITY_POOR = "air_quality_poor"       # Poor air quality
+    LOUD_NOISE = "loud_noise"                   # Unusual noise detected
+
+    # === SYSTEM EVENTS ===
+    DEVICE_OFFLINE = "device_offline"           # Sensor/device went offline
+    DEVICE_ONLINE = "device_online"             # Sensor/device back online
+    LOW_BATTERY = "low_battery"                 # Device battery low
+
+
+class NotificationMode(str, Enum):
+    """
+    User preference for notification verbosity.
+
+    Stage 1: Simple toggle between modes.
+    """
+    QUIETER = "quieter"           # Minimal notifications
+    BALANCED = "balanced"         # Default - notify unusual only
+    INFORMATIVE = "informative"   # More updates (still not spam)
+
+
+class NotificationDecision(str, Enum):
+    """
+    Outcome of notification routing decision.
+
+    Used for logging and learning.
+    """
+    SEND = "send"                 # Notification sent
+    SUPPRESS_ROUTINE = "suppress_routine"     # Suppressed: routine activity
+    SUPPRESS_QUIET_HOURS = "suppress_quiet_hours"  # Suppressed: quiet hours
+    SUPPRESS_USER_PREF = "suppress_user_pref"      # Suppressed: user disabled
+    SUPPRESS_DUPLICATE = "suppress_duplicate"      # Suppressed: too recent
+    SUPPRESS_BASELINE = "suppress_baseline"        # Suppressed: matches baseline
+    DEFER_DIGEST = "defer_digest"                  # Deferred to daily digest
+
+
+class UserAction(str, Enum):
+    """
+    Actions user can take in response to notification.
+
+    Companion pattern: User ALWAYS has choice.
+    """
+    VIEW = "view"           # Lihat - view camera/snapshot
+    IGNORE = "ignore"       # Abaikan - dismiss notification
+    LATER = "later"         # Nanti - remind later
+    CALL = "call"           # Hubungi - call the person
+    CHECK = "check"         # Cek - check status
+    ADJUST = "adjust"       # Atur - adjust setting
+    ACKNOWLEDGE = "ack"     # Acknowledge without action
+
+
+# ===============================
+# COMPANION MODE DEFAULTS
+# ===============================
+
+# Events that ALWAYS notify (regardless of mode)
+ALWAYS_NOTIFY_EVENTS = frozenset({
+    CompanionEventType.DOORBELL_RING,      # User expects to respond
+    CompanionEventType.UNKNOWN_PERSON,     # Security concern
+    CompanionEventType.CHILD_CRYING,       # Safety concern
+})
+
+# Events that NEVER auto-notify
+NEVER_AUTO_NOTIFY_EVENTS = frozenset({
+    CompanionEventType.CHILD_SLEEPING,     # Privacy
+    CompanionEventType.DEVICE_ONLINE,      # Too noisy
+})
+
+# Events that notify only when user is away
+NOTIFY_WHEN_AWAY_EVENTS = frozenset({
+    CompanionEventType.MOTION_DETECTED,
+    CompanionEventType.DOOR_OPENED,
+    CompanionEventType.ACTIVITY_IN_ZONE,
+    CompanionEventType.COURIER_ARRIVED,
+    CompanionEventType.PACKAGE_DELIVERED,
+})
+
+# Events that notify only when unusual
+NOTIFY_WHEN_UNUSUAL_EVENTS = frozenset({
+    CompanionEventType.FAMILY_ARRIVED,     # Only if late
+    CompanionEventType.FAMILY_LEFT,        # Only if unusual time
+    CompanionEventType.CHILD_ARRIVED,      # Only if late
+    CompanionEventType.CHILD_LEFT,         # Only if unusual
+})
+
+# Default quiet hours
+DEFAULT_QUIET_HOURS_START = "23:00"
+DEFAULT_QUIET_HOURS_END = "07:00"
+
+# Duplicate suppression window (seconds)
+DUPLICATE_SUPPRESSION_WINDOW = 300  # 5 minutes
+
+# Baseline deviation threshold for "unusual"
+BASELINE_DEVIATION_THRESHOLD = 0.3  # 30% deviation from normal
