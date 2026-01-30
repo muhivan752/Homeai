@@ -9,7 +9,7 @@
         <a href="{{ url_for('main.dashboard') }}" class="nav-item {{ 'active' if request.endpoint == 'main.dashboard' }}">
             <i class="fas fa-chart-line"></i> <span>Dashboard</span>
         </a>
-        <a href="{{ url_for('devices.list_devices') }}" class="nav-item {{ 'active' if 'devices' in request.endpoint }}">
+        <a href="{{ url_for('devices.device_list') }}" class="nav-item {{ 'active' if 'devices' in request.endpoint }}">
             <i class="fas fa-plug"></i> <span>Devices</span>
         </a>
         <!-- Coming soon
@@ -40,7 +40,7 @@
         <div class="user-info">
             <div class="user-avatar">
                 {% if g.user and g.user.avatar %}
-                    <img src="{{ url_for('media.serve_media', filename=g.user.avatar) }}" alt="Avatar">
+                    <img src="{{ url_for('media.serve_avatar', filename=g.user.avatar) }}" alt="Avatar">
                 {% else %}
                     <span class="avatar-placeholder">{{ g.user.name[:2]|upper if g.user else 'U' }}</span>
                 {% endif %}
